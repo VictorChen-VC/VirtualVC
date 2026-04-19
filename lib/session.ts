@@ -1,12 +1,19 @@
-// LOCAL DEV: in-memory store. Swap back to @vercel/kv for production.
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { Message, Provider } from "./ai"
 import { Vertical } from "./prompts"
 
-// Survive Next.js HMR — module re-evaluation resets module-level vars,
-// but globalThis persists for the lifetime of the Node process.
+// In-memory cache — survives HMR in dev, acts as a fast layer in prod
 const g = globalThis as typeof globalThis & { __pitchStore?: Map<string, Session> }
 if (!g.__pitchStore) g.__pitchStore = new Map()
 const store: Map<string, Session> = g.__pitchStore
+
+// Supabase client for cross-instance persistence (serverless safe)
+function getSupabase() {
+  const url  = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createSupabaseClient(url, key)
+}
 
 export interface Session {
   id: string
@@ -107,7 +114,40 @@ export function parseScoreData(raw: unknown): ScoreData {
 }
 
 export async function getSession(id: string): Promise<Session | null> {
-  return store.get(id) ?? null
+  // Fast path: in-memory cache
+  const cached = store.get(id)
+  if (cached) return cached
+
+  // Slow path: fetch from Supabase (handles cross-instance serverless scenario)
+  try {
+    const supabase = getSupabase()
+    if (!supabase) return null
+
+    const { data } = await supabase
+      .from("pitch_sessions")
+      .select("session_id, startup, stage, market, provider, vertical, messages, score_data, created_at")
+      .eq("session_id", id)
+      .single()
+
+    if (!data) return null
+
+    const session: Session = {
+      id:        data.session_id,
+      startup:   data.startup,
+      stage:     data.stage,
+      market:    data.market,
+      provider:  data.provider as Provider,
+      vertical:  (data.vertical ?? "general") as Vertical,
+      messages:  (data.messages as Message[]) ?? [],
+      score:     data.score_data ?? undefined,
+      createdAt: data.created_at,
+    }
+    store.set(id, session)
+    return session
+  } catch (err) {
+    console.error("getSession Supabase error:", err)
+    return null
+  }
 }
 
 export async function saveSession(session: Session): Promise<void> {
@@ -117,13 +157,28 @@ export async function saveSession(session: Session): Promise<void> {
 export async function createSession(data: Omit<Session, "id" | "messages" | "createdAt">): Promise<Session> {
   const { v4: uuidv4 } = await import("uuid")
   const id = uuidv4()
-  const session: Session = {
-    ...data,
-    id,
-    messages: [],
-    createdAt: new Date().toISOString(),
-  }
+  const session: Session = { ...data, id, messages: [], createdAt: new Date().toISOString() }
   store.set(id, session)
+
+  // Write to Supabase synchronously so other instances can find it
+  try {
+    const supabase = getSupabase()
+    if (supabase) {
+      const { error } = await supabase.from("pitch_sessions").insert({
+        session_id: id,
+        startup:    data.startup,
+        stage:      data.stage,
+        market:     data.market,
+        provider:   data.provider,
+        vertical:   data.vertical,
+        messages:   [],
+      })
+      if (error) console.error("createSession Supabase error:", error)
+    }
+  } catch (err) {
+    console.error("createSession Supabase error:", err)
+  }
+
   return session
 }
 
@@ -132,6 +187,21 @@ export async function appendMessage(id: string, message: Message): Promise<Sessi
   if (!session) return null
   session.messages.push(message)
   store.set(id, session)
+
+  // Persist updated messages so other instances see them
+  try {
+    const supabase = getSupabase()
+    if (supabase) {
+      const { error } = await supabase
+        .from("pitch_sessions")
+        .update({ messages: session.messages })
+        .eq("session_id", id)
+      if (error) console.error("appendMessage Supabase error:", error)
+    }
+  } catch (err) {
+    console.error("appendMessage Supabase error:", err)
+  }
+
   return session
 }
 
@@ -140,5 +210,19 @@ export async function saveScore(id: string, score: ScoreData): Promise<Session |
   if (!session) return null
   session.score = score
   store.set(id, session)
+
+  try {
+    const supabase = getSupabase()
+    if (supabase) {
+      const { error } = await supabase
+        .from("pitch_sessions")
+        .update({ score_data: score, score: score.score, decision: score.decision, messages: session.messages })
+        .eq("session_id", id)
+      if (error) console.error("saveScore Supabase error:", error)
+    }
+  } catch (err) {
+    console.error("saveScore Supabase error:", err)
+  }
+
   return session
 }

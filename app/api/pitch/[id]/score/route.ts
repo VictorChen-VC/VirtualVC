@@ -4,7 +4,6 @@ export const maxDuration = 60
 import { getSession, saveScore, parseScoreData } from "@/lib/session"
 import { generateJSON } from "@/lib/ai"
 import { SCORING_PROMPT } from "@/lib/prompts"
-import { createClient } from "@/lib/supabase/server"
 
 export async function POST(
   req: NextRequest,
@@ -40,19 +39,6 @@ Startup being evaluated:
     const scoreData = parseScoreData(raw)
 
     await saveScore(id, scoreData)
-
-    // Update Supabase row with score, decision, and full conversation (non-blocking)
-    ;(async () => {
-      try {
-        const supabase = createClient()
-        const { error } = await supabase.from("pitch_sessions")
-          .update({ score: scoreData.score, decision: scoreData.decision, messages: session.messages })
-          .eq("session_id", id)
-        if (error) console.error("Supabase update error:", error)
-      } catch (err) {
-        console.error("Supabase update failed:", err)
-      }
-    })()
 
     return NextResponse.json(scoreData)
   } catch (error) {
