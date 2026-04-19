@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { createMiddlewareClient } from "@/lib/supabase/middleware"
 
 export async function middleware(request: NextRequest) {
-  // Refresh Supabase session cookies on every request — required by @supabase/ssr
   const response = NextResponse.next({ request })
+  // Skip if Supabase env vars aren't configured
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return response
+  }
   const supabase = createMiddlewareClient(request, response)
   await supabase.auth.getUser()
   return response
