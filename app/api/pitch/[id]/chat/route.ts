@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server"
+
+export const maxDuration = 60
 import { getSession, appendMessage } from "@/lib/session"
 import { streamChat } from "@/lib/ai"
 import { buildSystemPrompt } from "@/lib/prompts"

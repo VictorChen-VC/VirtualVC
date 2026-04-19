@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+
+export const maxDuration = 60
 import { createSession, appendMessage } from "@/lib/session"
 import { Provider, generateText } from "@/lib/ai"
 import { detectVertical, buildSystemPrompt } from "@/lib/prompts"

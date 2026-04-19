@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+
+export const maxDuration = 60
 import { getSession, saveScore, parseScoreData } from "@/lib/session"
 import { generateJSON } from "@/lib/ai"
 import { SCORING_PROMPT } from "@/lib/prompts"
