@@ -48,11 +48,11 @@ export function getIP(req: Request): string {
 // Shared limit config
 export const LIMITS = {
   // How many pitch sessions one IP can start per hour
-  sessionsPerHour: { limit: 5, windowMs: 60 * 60 * 1000 },
+  sessionsPerHour: { limit: 3, windowMs: 60 * 60 * 1000 },
   // How many chat messages one IP can send per 10 minutes
-  chatsPerWindow: { limit: 30, windowMs: 10 * 60 * 1000 },
-  // Hard cap on total messages in a single session (20 exchanges = 40 messages)
-  messagesPerSession: 40,
+  chatsPerWindow: { limit: 20, windowMs: 10 * 60 * 1000 },
+  // Hard cap on total messages in a single session (10 exchanges = 20 messages)
+  messagesPerSession: 20,
   // Max characters accepted from the user in a single message
-  maxInputChars: 1500,
+  maxInputChars: 800,
 }
