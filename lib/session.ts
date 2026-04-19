@@ -183,7 +183,7 @@ export async function createSession(data: Omit<Session, "id" | "messages" | "cre
 }
 
 export async function appendMessage(id: string, message: Message): Promise<Session | null> {
-  const session = store.get(id)
+  const session = store.get(id) ?? await getSession(id)
   if (!session) return null
   session.messages.push(message)
   store.set(id, session)
@@ -206,7 +206,7 @@ export async function appendMessage(id: string, message: Message): Promise<Sessi
 }
 
 export async function saveScore(id: string, score: ScoreData): Promise<Session | null> {
-  const session = store.get(id)
+  const session = store.get(id) ?? await getSession(id)
   if (!session) return null
   session.score = score
   store.set(id, session)
