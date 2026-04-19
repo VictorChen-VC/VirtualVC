@@ -40,13 +40,17 @@ Startup being evaluated:
     await saveScore(id, scoreData)
 
     // Update Supabase row with score, decision, and full conversation (non-blocking)
-    const supabase = createClient()
-    supabase.from("pitch_sessions")
-      .update({ score: scoreData.score, decision: scoreData.decision, messages: session.messages })
-      .eq("session_id", id)
-      .then(({ error }) => {
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const { error } = await supabase.from("pitch_sessions")
+          .update({ score: scoreData.score, decision: scoreData.decision, messages: session.messages })
+          .eq("session_id", id)
         if (error) console.error("Supabase update error:", error)
-      })
+      } catch (err) {
+        console.error("Supabase update failed:", err)
+      }
+    })()
 
     return NextResponse.json(scoreData)
   } catch (error) {

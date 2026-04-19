@@ -42,19 +42,24 @@ export async function POST(req: NextRequest) {
     const vertical = detectVertical(startup, market)
     const session = await createSession({ startup, stage, market, provider, vertical })
 
-    // Log to Supabase (non-blocking)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    supabase.from("pitch_sessions").insert({
-      session_id: session.id,
-      user_id: user?.id ?? null,
-      startup,
-      stage,
-      market,
-      provider,
-    }).then(({ error }) => {
-      if (error) console.error("Supabase insert error:", error)
-    })
+    // Log to Supabase (non-blocking — never let this kill session creation)
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        const { error } = await supabase.from("pitch_sessions").insert({
+          session_id: session.id,
+          user_id: user?.id ?? null,
+          startup,
+          stage,
+          market,
+          provider,
+        })
+        if (error) console.error("Supabase insert error:", error)
+      } catch (err) {
+        console.error("Supabase logging failed:", err)
+      }
+    })()
 
     // Generate Victor's opening — isolated try/catch so a failed AI call doesn't kill session creation
     const firstUserMessage = `${startup}\n\nStage: ${stage}\nTarget market: ${market}`
