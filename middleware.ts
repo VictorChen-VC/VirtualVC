@@ -1,0 +1,16 @@
+import { NextRequest, NextResponse } from "next/server"
+import { createMiddlewareClient } from "@/lib/supabase/middleware"
+
+export async function middleware(request: NextRequest) {
+  // Refresh Supabase session cookies on every request — required by @supabase/ssr
+  const response = NextResponse.next({ request })
+  const supabase = createMiddlewareClient(request, response)
+  await supabase.auth.getUser()
+  return response
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+}
